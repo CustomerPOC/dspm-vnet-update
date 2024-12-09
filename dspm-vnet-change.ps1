@@ -1,7 +1,18 @@
-$tagName      = 'dig-security'
-$newCIDR      = '10.61.8.0/24'
-$allVnets     = Get-AzVirtualNetwork
-$vnetCount    = $allVnets.Count
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
+    [switch]$CreateVNet,
+    [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
+    [switch]$Force
+)
+
+$tagName        = 'dig-security'
+$newCIDR        = '10.61.8.0/22'
+$allVnets       = Get-AzVirtualNetwork
+$vnetCount      = $allVnets.Count
+$resourceGroup  = Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -match "dig-security-rg-" }
+$regions        = @("westus", "eastus", "northcentralus", "southcentralus", "centralus", "eastus2", "canadaeast", "westcentralus", "westus2", "westus3")
+$regionCount    = $regions.Count
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Test-CIDR Function: RegEx to match format x.x.x.x/xx                                                                                     ║
@@ -46,6 +57,39 @@ do {
 }
 until ($isValid)
 
+
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ New-Vnet: Create DIG | DSPM VNet's in all specified regions                                                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+if ($CreateVNet){
+    foreach ($region in $regions) {
+
+        $counter++
+        $percentComplete = ($counter / $regionCount ) * 100
+        Write-Progress -Activity "Creating VNet in $region" -Status "$counter of $regionCount" -PercentComplete $percentComplete
+
+        # Backup VNet as JSON file
+        #Backup-VNet -vnet $vnet
+
+        $digName = "$tagName-$region"
+
+        if ($Force) {
+            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' } -Force
+        }
+
+        if (-not $Force) {
+            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' }
+        }
+
+        if ($newVNet) {
+            Add-AzVirtualNetworkSubnetConfig -Name $digName -VirtualNetwork $newVNet -AddressPrefix $newCIDR  > $null
+            Set-AzVirtualNetwork -VirtualNetwork $newVNet > $null
+        }
+    }
+    $counter = 0
+    exit
+}
+
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Main Process: Loop through all discovered VNet's, find matching tag, remove all subnets and CIDR's, replace with specified CIDR.         ║
 # ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
@@ -89,7 +133,5 @@ foreach ($vnet in $allVnets) {
         }
         finally {}
 
-
     }
 }
-
