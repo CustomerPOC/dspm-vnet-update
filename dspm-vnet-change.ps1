@@ -3,7 +3,9 @@ param (
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
-    [switch]$Force
+    [switch]$Force,
+    [Parameter(Mandatory=$false, HelpMessage="Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus')")]
+    [string]$Regions
 )
 
 $tagName        = 'dig-security'
@@ -11,8 +13,17 @@ $newCIDR        = '10.61.8.0/22'
 $allVnets       = Get-AzVirtualNetwork
 $vnetCount      = $allVnets.Count
 $resourceGroup  = Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -match "dig-security-rg-" }
-$regions        = @("westus", "eastus", "northcentralus", "southcentralus", "centralus", "eastus2", "canadaeast", "westcentralus", "westus2", "westus3")
-$regionCount    = $regions.Count
+$defaultRegions = @("westus", "eastus", "northcentralus", "southcentralus", "centralus", "eastus2", "canadaeast", "westcentralus", "westus2", "westus3")
+
+if ($Regions) {
+    $dspmRegions = $Regions.Split(',').Trim()
+}
+
+if (-not $regions) {
+    $dspmRegions = $defaultRegions
+}
+
+$regionCount    = $dspmRegions.Count
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Test-CIDR Function: RegEx to match format x.x.x.x/xx                                                                                     ║
@@ -62,7 +73,8 @@ until ($isValid)
 # ║ New-Vnet: Create DIG | DSPM VNet's in all specified regions                                                                              ║
 # ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 if ($CreateVNet){
-    foreach ($region in $regions) {
+
+    foreach ($region in $dspmRegions) {
 
         $counter++
         $percentComplete = ($counter / $regionCount ) * 100
