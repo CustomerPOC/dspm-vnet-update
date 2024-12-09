@@ -1,6 +1,6 @@
 $tagName      = 'dig-security'
-$currentCIDR  = '10.0.0.0/24'
-$newCIDR      = '10.50.0.0/24'
+$currentCIDR  = '10.0.0.0/16'
+$newCIDR      = '10.68.10.0/24'
 $allVnets     = Get-AzVirtualNetwork
 $vnetCount    = $allVnets.Count
 
@@ -10,22 +10,14 @@ function backup-vnet {
         [Microsoft.Azure.Commands.Network.Models.PSVirtualNetwork] $vnet
     )
     $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-    $filename = "vnet-modification-before-$timestamp.xml"
-    $vnet | Export-Clixml -Path $filename
-}
+    $filename = "$($vnet.Name)-raw-$timestamp.json"
+    $vnet | ConvertTo-Json -Depth 10 | Out-File -FilePath $filename
 
-function restore-vnet {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string] $filename
-    )
-    try {
-        $vnet = Import-Clixml -Path $filename
-        Set-AzVirtualNetwork -VirtualNetwork $vnet
-    }
-    catch {
-        Write-Error "Failed to restore VNet from file $($filename): $($_)"
-    }
+    # Export-AzResourceGroup `
+    #     -ResourceGroupName $vnet.ResourceGroupName `
+    #     -Resource $vnet.Id `
+    #     -SkipAllParameterization `
+    #     -Force 
 }
 
 foreach ($vnet in $allVnets) {
@@ -33,12 +25,13 @@ foreach ($vnet in $allVnets) {
     $percentComplete = ($counter / $vnetCount) * 100
     Write-Progress -Activity "Processing VNets" -Status "Processing VNet $counter of $vnetCount" -PercentComplete $percentComplete
 
-    if (-not $vnet.Tag) { continue }
+    if (-not $vnet.Tag) { Start-Sleep -Seconds 1; continue }
+    
     if ($vnet.Tag.ContainsKey($tagName)) {
         $subnetName = "$($tagName)-$($vnet.Location)"
 
         try {
-            # Backup VNet as XML file
+            # Backup VNet as JSON file
             backup-vnet -vnet $vnet
 
             # Remove existing subnet
