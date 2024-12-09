@@ -25,6 +25,8 @@ Run the script to update all your VNets.
 ./dspm-vnet-update/dspm-vnet-change.ps1
 ```
 
+## Optional Create VNet
+
 Run the script to create VNets in specified regions.
 
 ```shell
