@@ -3,6 +3,9 @@ $newCIDR      = '10.61.8.0/24'
 $allVnets     = Get-AzVirtualNetwork
 $vnetCount    = $allVnets.Count
 
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Test-CIDR Function: RegEx to match format x.x.x.x/xx                                                                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 function Test-CIDR {
     param (
         [string]$cidr
@@ -10,6 +13,10 @@ function Test-CIDR {
     $regex = '^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[1-2][0-9]|3[0-2])$'
     return $cidr -match $regex
 }
+
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Backup-VNet Function: Export existing VNet as RAW json                                                                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 function Backup-VNet {
     param (
         [Parameter(Mandatory = $true)]
@@ -18,14 +25,11 @@ function Backup-VNet {
     $timestamp = Get-Date -Format "yyyyMMddHHmmss"
     $filename = "$($vnet.Name)-raw-$timestamp.json"
     $vnet | ConvertTo-Json -Depth 10 | Out-File -FilePath $filename
-
-    # Export-AzResourceGroup `
-    #     -ResourceGroupName $vnet.ResourceGroupName `
-    #     -Resource $vnet.Id `
-    #     -SkipAllParameterization `
-    #     -Force 
 }
 
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Prompt for new CIDR range and validate valid IP. Ctrl-C to break loop.                                                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 do {
     $newAddress = Read-Host -Prompt "Enter the new CIDR for the VNet (default: $newCIDR)"
 
@@ -42,6 +46,9 @@ do {
 }
 until ($isValid)
 
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Main Process: Loop through all discovered VNet's, find matching tag, remove all subnets and CIDR's, replace with specified CIDR.         ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 foreach ($vnet in $allVnets) {
     $counter++
     $percentComplete = ($counter / $vnetCount) * 100
@@ -51,6 +58,7 @@ foreach ($vnet in $allVnets) {
     if (-not $vnet.Tag) { Start-Sleep -Seconds 1; continue }
     
     if ($vnet.Tag.ContainsKey($tagName)) {
+        # Set subnet name format (current matches DIG, DSPM subnet name)
         $subnetName = "$($tagName)-$($vnet.Location)"
 
         try {
