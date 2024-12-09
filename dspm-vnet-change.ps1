@@ -1,3 +1,8 @@
+param (
+    [switch]$CreateVNet,
+    [string]$newCIDR
+)
+
 $tagName        = 'dig-security'
 $newCIDR        = '10.61.8.0/22'
 $allVnets       = Get-AzVirtualNetwork
@@ -52,29 +57,28 @@ until ($isValid)
 
 
 
-
-
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-# ║ Main Process: Loop through all discovered VNet's, find matching tag, remove all subnets and CIDR's, replace with specified CIDR.         ║
+# ║ New-Vnet: Create DIG | DSPM VNet's in all specified regions                                                                              ║
 # ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-foreach ($region in $regions) {
+if ($CreateVNet){
+    foreach ($region in $regions) {
 
-    $counter++
-    $percentComplete = ($counter / $regionCount ) * 100
-    Write-Progress -Activity "Creating VNet in $region" -Status "$counter of $regionCount" -PercentComplete $percentComplete
+        $counter++
+        $percentComplete = ($counter / $regionCount ) * 100
+        Write-Progress -Activity "Creating VNet in $region" -Status "$counter of $regionCount" -PercentComplete $percentComplete
 
-    # Backup VNet as JSON file
-    Backup-VNet -vnet $vnet
+        # Backup VNet as JSON file
+        Backup-VNet -vnet $vnet
 
-    $digName = "$tagName-$region"
-    $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' } -Force
-    Add-AzVirtualNetworkSubnetConfig -Name $digName -VirtualNetwork $newVNet -AddressPrefix $newCIDR  > $null
-    Set-AzVirtualNetwork -VirtualNetwork $newVNet > $null
+        $digName = "$tagName-$region"
+        $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' } -Force
+        Add-AzVirtualNetworkSubnetConfig -Name $digName -VirtualNetwork $newVNet -AddressPrefix $newCIDR  > $null
+        Set-AzVirtualNetwork -VirtualNetwork $newVNet > $null
+    }
+    exit
 }
 
 $counter = 0
-
-
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Main Process: Loop through all discovered VNet's, find matching tag, remove all subnets and CIDR's, replace with specified CIDR.         ║
