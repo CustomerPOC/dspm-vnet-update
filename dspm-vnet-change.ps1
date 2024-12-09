@@ -1,11 +1,19 @@
 $tagName      = 'dig-security'
 $currentCIDR  = '10.0.0.0/16'
-$newCIDR      = '10.68.10.0/24'
+$newCIDR      = '10.61.8.0/24'
 $allVnets     = Get-AzVirtualNetwork
 $vnetCount    = $allVnets.Count
 
-$currentAddress = Read-Host -Prompt "Enter the current CIDR for the VNet" -Default $currentCIDR
-$newAddress     = Read-Host -Prompt "Enter the new CIDR for the VNet" -Default $newCIDR
+try {
+    $currentAddress = Read-Host -Prompt "Enter the current CIDR for the VNet (default: $currentCIDR)"
+    $newAddress     = Read-Host -Prompt "Enter the new CIDR for the VNet (default: $newCIDR)"
+
+    if (-not $currentAddress) { $currentAddress = $currentCIDR }
+    if (-not $newAddress) { $newAddress = $newCIDR }
+}
+catch {
+    Write-Host "Error: $($_.Exception.Message)"
+}
 
 function backup-vnet {
     param (
@@ -24,6 +32,7 @@ function backup-vnet {
 }
 
 foreach ($vnet in $allVnets) {
+    
     $counter++
     $percentComplete = ($counter / $vnetCount) * 100
     Write-Progress -Activity "Processing VNets" -Status "Processing VNet $counter of $vnetCount" -PercentComplete $percentComplete
@@ -56,3 +65,4 @@ foreach ($vnet in $allVnets) {
 
     }
 }
+
