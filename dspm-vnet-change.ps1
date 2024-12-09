@@ -10,10 +10,23 @@ function backup-vnet {
         [Microsoft.Azure.Commands.Network.Models.PSVirtualNetwork] $vnet
     )
     $timestamp = Get-Date -Format "yyyyMMddHHmmss"
-    $filename = "vnet-modification-before-$timestamp.json"
-    $vnet | ConvertTo-Json -Depth 10 | Out-File -FilePath $filename
+    $filename = "vnet-modification-before-$timestamp.xml"
+    $vnet | Export-Clixml -Path $filename
 }
 
+function restore-vnet {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string] $filename
+    )
+    try {
+        $vnet = Import-Clixml -Path $filename
+        Set-AzVirtualNetwork -VirtualNetwork $vnet
+    }
+    catch {
+        Write-Error "Failed to restore VNet from file $($filename): $($_)"
+    }
+}
 
 foreach ($vnet in $allVnets) {
     $counter++
@@ -25,7 +38,7 @@ foreach ($vnet in $allVnets) {
         $subnetName = "$($tagName)-$($vnet.Location)"
 
         try {
-            # Backup VNet as JSON file
+            # Backup VNet as XML file
             backup-vnet -vnet $vnet
 
             # Remove existing subnet
