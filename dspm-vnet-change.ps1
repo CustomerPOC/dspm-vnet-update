@@ -4,6 +4,9 @@ $newCIDR      = '10.68.10.0/24'
 $allVnets     = Get-AzVirtualNetwork
 $vnetCount    = $allVnets.Count
 
+$currentAddress = Read-Host -Prompt "Enter the current CIDR for the VNet" -Default $currentCIDR
+$newAddress     = Read-Host -Prompt "Enter the new CIDR for the VNet" -Default $newCIDR
+
 function backup-vnet {
     param (
         [Parameter(Mandatory = $true)]
@@ -38,11 +41,11 @@ foreach ($vnet in $allVnets) {
             Remove-AzVirtualNetworkSubnetConfig -Name $subnetName -VirtualNetwork $vnet > $null
 
             # Add new CIDR and remove old CIDR
-            $vnet.AddressSpace.AddressPrefixes.Add($newCIDR)
-            $vnet.AddressSpace.AddressPrefixes.Remove($currentCIDR)
+            $vnet.AddressSpace.AddressPrefixes.Add($newAddress)
+            $vnet.AddressSpace.AddressPrefixes.Remove($currentAddress)
 
             # Update VNet with new values
-            Add-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix $newCIDR -VirtualNetwork $vnet > $null
+            Add-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix $newAddress -VirtualNetwork $vnet > $null
             Set-AzVirtualNetwork -VirtualNetwork $vnet > $null
         }
         catch {
