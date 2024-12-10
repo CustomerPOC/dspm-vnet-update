@@ -1,18 +1,60 @@
+<#
+.SYNOPSIS
+    This script allows for the re-ip or re-creation of DIG | Prisma Cloud DSPM VNets used for data scanning.
+
+.DESCRIPTION
+    This script will look for all VNets in a resource group matching: "dig-security-rg-" and then find all VNets matching the tag "dig-security"
+    Once identified the script will remove all subnets and CIDR's, replace with specified CIDR.
+
+.PARAMETER CreateVNet
+    Create/re-create new VNets based on defined regions.
+
+.PARAMETER Cidr
+    Address prefix to use for new VNets: 10.1.0.0/24
+.PARAMETER Force
+    If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
+
+.PARAMETER Regions
+    Comma-separated list of Azure regions used for CreateVNet switch: "westus,eastus,centralus"
+
+.EXAMPLE
+    Create VNet's in westus, eastus, and eastus2 regions.
+
+    .\dspm-vnet-change.ps1 -CreateVNet -Regions "westus,eastus, eastus2"
+
+.EXAMPLE
+    Re-IP existing VNets with new CIDR.
+
+    .\dspm-vnet-change.ps1
+
+.NOTES
+    Author: Erick Moore
+    Date: 2024-12-09
+#>
+
 [CmdletBinding()]
 param (
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
-    [switch]$Force
+    [switch]$Force,
+    [Parameter(Mandatory=$true, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
+    [string]$Cidr,
+    [Parameter(Mandatory=$false, HelpMessage="Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus')")]
+    [string]$Regions
 )
 
 $tagName        = 'dig-security'
-$newCIDR        = '10.61.8.0/22'
-$allVnets       = Get-AzVirtualNetwork
-$vnetCount      = $allVnets.Count
 $resourceGroup  = Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -match "dig-security-rg-" }
-$regions        = @("westus", "eastus", "northcentralus", "southcentralus", "centralus", "eastus2", "canadaeast", "westcentralus", "westus2", "westus3")
-$regionCount    = $regions.Count
+$allVnets       = Get-AzVirtualNetwork -ResourceGroupName $resourceGroup.ResourceGroupName
+$vnetCount      = $allVnets.Count
+$newAddress     = $Cidr
+
+if ($Regions) {
+    $dspmRegions = $Regions.Split(',').Trim()
+}
+
+$regionCount    = $dspmRegions.Count
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Test-CIDR Function: RegEx to match format x.x.x.x/xx                                                                                     ║
@@ -23,6 +65,11 @@ function Test-CIDR {
     )
     $regex = '^([0-9]{1,3}\.){3}[0-9]{1,3}\/([0-9]|[1-2][0-9]|3[0-2])$'
     return $cidr -match $regex
+}
+
+if (-not (Test-CIDR -cidr $Cidr)) { 
+    Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
+    exit
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
@@ -39,30 +86,11 @@ function Backup-VNet {
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
-# ║ Prompt for new CIDR range and validate valid IP. Ctrl-C to break loop.                                                                   ║
-# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
-do {
-    $newAddress = Read-Host -Prompt "Enter the new CIDR for the VNet (default: $newCIDR)"
-
-    # Use default value if none provided
-    if (-not $newAddress) { $newAddress = $newCIDR }
-
-    # Validate provided CIDR is in valid format
-    $isValid = Test-CIDR -cidr $newAddress
-
-    if (-not $isValid) {
-        Write-Host ""
-        Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
-    }
-}
-until ($isValid)
-
-
-# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ New-Vnet: Create DIG | DSPM VNet's in all specified regions                                                                              ║
 # ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 if ($CreateVNet){
-    foreach ($region in $regions) {
+
+    foreach ($region in $dspmRegions) {
 
         $counter++
         $percentComplete = ($counter / $regionCount ) * 100
@@ -74,15 +102,15 @@ if ($CreateVNet){
         $digName = "$tagName-$region"
 
         if ($Force) {
-            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' } -Force
+            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newAddress -Tag @{ $tagName = 'true' } -Force
         }
 
         if (-not $Force) {
-            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newCIDR -Tag @{ $tagName = 'true' }
+            $newVNet = New-AzVirtualNetwork -Name $digName -ResourceGroupName $resourceGroup.ResourceGroupName -Location $region -AddressPrefix $newAddress -Tag @{ $tagName = 'true' }
         }
 
         if ($newVNet) {
-            Add-AzVirtualNetworkSubnetConfig -Name $digName -VirtualNetwork $newVNet -AddressPrefix $newCIDR  > $null
+            Add-AzVirtualNetworkSubnetConfig -Name $digName -VirtualNetwork $newVNet -AddressPrefix $newAddress  > $null
             Set-AzVirtualNetwork -VirtualNetwork $newVNet > $null
         }
     }
