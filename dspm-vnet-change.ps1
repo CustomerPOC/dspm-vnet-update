@@ -58,7 +58,7 @@ param (
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
     [Parameter(Mandatory = $false, HelpMessage = "Path to CSV file containing regions and CIDRs for updating.")]
-    [string]$FileImport,
+    [string]$ImportFile,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
     [switch]$Force,
     [Parameter(Mandatory=$false, HelpMessage="Prompt for CIDR on each region.")]
@@ -76,21 +76,7 @@ $newAddress     = $Cidr
 
 if ($Regions) {
     $dspmRegions = $Regions.Split(',').Trim()
-    $regionCount    = $dspmRegions.Count
-}
-
-if ($FileImport) {
-    $csvData = Import-Csv -Path $CsvPath
-
-    foreach ($item in $csvData) {
-        $item.Region = $item.Region.Trim()
-        $item.Cidr = $item.Cidr.Trim()
-        $validCidr = Test-CIDR -cidr $item.Cidr
-        if (-not $validCidr) {
-            Write-Error "Invalid CIDR format in CSV file for $($item.Region). Please ensure CIDR is in the format x.x.x.x/xx"
-            exit
-        }
-    }
+    $regionCount = $dspmRegions.Count
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
@@ -142,11 +128,36 @@ function Backup-VNet {
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ ImporFile: Modify/Create DIG | DSPM VNet's in all specified regions from imported csv file                                               ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+if ($ImportFile) {
+    $csvData = Import-Csv -Path $ImportFile
+    
+    foreach ($item in $csvData) {
+        $item.Region = $item.Region.Trim()
+        $item.Cidr = $item.Cidr.Trim()
+        $validCidr = Test-CIDR -cidr $item.Cidr
+        if (-not $validCidr) {
+            Write-Error "Invalid CIDR format in CSV file for $($item.Region). Please ensure CIDR is in the format x.x.x.x/xx"
+            exit
+        }
+    }
+
+    $dspmRegions = ($csvData | Select-Object Region).Region
+}
+
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ New-Vnet: Create DIG | DSPM VNet's in all specified regions                                                                              ║
 # ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
 if ($CreateVNet){
 
     foreach ($region in $dspmRegions) {
+
+        # If ImportFile switch is used, get CIDR from CSV file
+        if ($ImportFile) {
+            $regionData = $csvData | Where-Object Region -eq $region
+            $newAddress = $regionData.Cidr
+        }
 
         if ($Prompt) {
             $newAddress = Get-ValidCIDR -location $region
@@ -193,8 +204,8 @@ foreach ($vnet in $allVnets) {
         # Set subnet name format (current matches DIG, DSPM subnet name)
         $subnetName = "$($tagName)-$($vnet.Location)"
 
-        # If FileImport switch is used, get CIDR from CSV file
-        if ($FileImport) {
+        # If ImportFile switch is used, get CIDR from CSV file
+        if ($ImportFile) {
             $regionData = $csvData | Where-Object Region -eq $vnet.Location
             $newAddress = $regionData.Cidr
         }
