@@ -144,6 +144,7 @@ if ($ImportFile) {
     }
 
     $dspmRegions = ($csvData | Select-Object Region).Region
+    $regionCount = $dspmRegions.Count
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
