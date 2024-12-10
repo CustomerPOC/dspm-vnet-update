@@ -16,7 +16,7 @@ Open Azure Cloud Shell and clone this repo.
 git clone https://github.com/CustomerPOC/dspm-vnet-update
 ```
 
-Set your subscription id to target the DIG hub account subscription where 00000000-0000-0000-0000-000000000000 is your subscription id.
+Set your subscription id to target the DIG hub account subscription.
 
 ```shell
 Set-AzContext -Subscription 00000000-0000-0000-0000-000000000000
@@ -40,6 +40,12 @@ Example: Import a CSV and update DIG | DSPM VNets defined in the CSV.
 
 ```shell
 ./dspm-vnet-change.ps1 -ImportFile ./example.csv
+```
+
+Example: Import a CSV and update DIG | DSPM VNets defined in the CSV only when they match the specified regions.
+
+```shell
+./dspm-vnet-change.ps1 -ImportFile ./example.csv -Regions "eastus, eastus2"
 ```
 
 Example: Update all DIG | DSPM VNets prompting for the CIDR in each region.
