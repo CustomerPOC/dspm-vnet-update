@@ -53,10 +53,12 @@
 param (
     [Parameter(Mandatory=$false, HelpMessage="If selected will output raw JSON of VNet's.")]
     [switch]$Backup,
-    [Parameter(Mandatory=$true, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
+    [Parameter(Mandatory=$false, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
     [string]$Cidr,
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
+    [Parameter(Mandatory = $false, HelpMessage = "Path to CSV file containing regions and CIDRs for updating.")]
+    [string]$FileImport,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
     [switch]$Force,
     [Parameter(Mandatory=$false, HelpMessage="Prompt for CIDR on each region.")]
@@ -74,9 +76,22 @@ $newAddress     = $Cidr
 
 if ($Regions) {
     $dspmRegions = $Regions.Split(',').Trim()
+    $regionCount    = $dspmRegions.Count
 }
 
-$regionCount    = $dspmRegions.Count
+if ($FileImport) {
+    $csvData = Import-Csv -Path $CsvPath
+
+    foreach ($item in $csvData) {
+        $item.Region = $item.Region.Trim()
+        $item.Cidr = $item.Cidr.Trim()
+        $validCidr = Test-CIDR -cidr $item.Cidr
+        if (-not $validCidr) {
+            Write-Error "Invalid CIDR format in CSV file for $($item.Region). Please ensure CIDR is in the format x.x.x.x/xx"
+            exit
+        }
+    }
+}
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
 # ║ Test-CIDR Function: RegEx to match format x.x.x.x/xx                                                                                     ║
@@ -89,9 +104,28 @@ function Test-CIDR {
     return $cidr -match $regex
 }
 
-if (-not (Test-CIDR -cidr $Cidr)) { 
-    Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
-    exit
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Get-ValidCIDR Function: Prompt for valid CIDR 3 times before failing                                                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+function Get-ValidCIDR {
+    param (
+        [string]$location,
+        [int]$maxRetries = 3
+    )
+    $retryCount = 0
+    do {
+        $cidr = Read-Host "Enter CIDR for $location"
+        if (Test-CIDR -cidr $cidr) {
+            return $cidr
+        }
+        else {
+            Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
+            $retryCount++
+        }
+    } while ($retryCount -lt $maxRetries)
+
+    Write-Host "Maximum retries reached. Skipping $location"
+    return $null
 }
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
@@ -115,10 +149,8 @@ if ($CreateVNet){
     foreach ($region in $dspmRegions) {
 
         if ($Prompt) {
-            $newAddress = Read-Host "Enter CIDR for $region"
-            if (-not (Test-CIDR -cidr $newAddress)) {
-                Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
-                Write-Host "Skipping $region"
+            $newAddress = Get-ValidCIDR -location $region
+            if (-not $newAddress) {
                 continue
             }
         }
@@ -161,12 +193,16 @@ foreach ($vnet in $allVnets) {
         # Set subnet name format (current matches DIG, DSPM subnet name)
         $subnetName = "$($tagName)-$($vnet.Location)"
 
+        # If FileImport switch is used, get CIDR from CSV file
+        if ($FileImport) {
+            $regionData = $csvData | Where-Object Region -eq $vnet.Location
+            $newAddress = $regionData.Cidr
+        }
+
         # If Prompt switch is used, prompt user for new CIDR
         if ($Prompt) {
-            $newAddress = Read-Host "Enter CIDR for $($vnet.Location)"
-            if (-not (Test-CIDR -cidr $newAddress)) {
-                Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
-                Write-Host "Skipping $($vnet.Location)"
+            $newAddress = Get-ValidCIDR -location $vnet.Location
+            if (-not $newAddress) {
                 continue
             }
         }
