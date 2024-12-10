@@ -44,31 +44,31 @@ cd dspm-vnet-update
 
 ## Example Usage
 
-Example: Re-IP all DSPM VNets to 10.20.0.0/24
+Re-IP all DSPM VNets to 10.20.0.0/24
 
 ```shell
 ./dspm-vnet-change.ps1 -Cidr 10.20.0.0/24
 ```
 
-Example: Import a CSV and update DIG | DSPM VNets defined in the CSV.
+Import a CSV and update DIG | DSPM VNets defined in the CSV.
 
 ```shell
 ./dspm-vnet-change.ps1 -ImportFile ./example.csv
 ```
 
-Example: Import a CSV and update DIG | DSPM VNets defined in the CSV only when they match the specified regions.
+Import a CSV and update DIG | DSPM VNets defined in the CSV only when they match the specified regions.
 
 ```shell
 ./dspm-vnet-change.ps1 -ImportFile ./example.csv -Regions "eastus, eastus2"
 ```
 
-Example: Update all DIG | DSPM VNets prompting for the CIDR in each region.
+Update all DIG | DSPM VNets prompting for the CIDR in each region.
 
 ```shell
 ./dspm-vnet-change.ps1 -Prompt
 ```
 
-Example: Create VNets in specified regions.
+Create VNets in specified regions.
 
 ```shell
 ./dspm-vnet-change.ps1 -Cidr 10.20.0.0/24 -CreateVNet -Regions "canadaeast, centralus, eastus, eastus2"
