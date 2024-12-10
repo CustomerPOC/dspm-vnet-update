@@ -15,11 +15,16 @@
 .PARAMETER CreateVNet
     Create/re-create new VNets based on defined regions.
 
+.PARAMETER Force
+    If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
+
+.PARAMETER ImportFile
+    Import CSV file with CIDR's to use for each region. The CSV format should have a header row with the following columns:
+    Region, Cidr
+
 .PARAMETER Prompt
     Switch to prompt user for new CIDR.
     
-.PARAMETER Force
-    If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
 
 .PARAMETER Regions
     Comma-separated list of Azure regions used for CreateVNet switch: "westus,eastus,centralus"
@@ -28,6 +33,11 @@
     Create VNet's in westus, eastus, and eastus2 regions.
 
     .\dspm-vnet-change.ps1 -CreateVNet -Regions "westus,eastus, eastus2" -Cidr 10.10.0.0/24
+
+.EXAMPLE
+    Modify existing VNets with new CIDR by importing a CSV file.
+
+    .\dspm-vnet-change.ps1 -ImportFile .\cidr.csv
 
 .EXAMPLE
     Re-IP existing VNets with new CIDR.
@@ -47,6 +57,7 @@
 .NOTES
     Author: Erick Moore
     Date: 2024-12-09
+
 #>
 
 [CmdletBinding()]
@@ -57,10 +68,10 @@ param (
     [string]$Cidr,
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
-    [Parameter(Mandatory = $false, HelpMessage = "Path to CSV file containing regions and CIDRs for updating.")]
-    [string]$ImportFile,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
     [switch]$Force,
+    [Parameter(Mandatory = $false, HelpMessage = "Path to CSV file containing regions and CIDRs for updating.")]
+    [string]$ImportFile,
     [Parameter(Mandatory=$false, HelpMessage="Prompt for CIDR on each region.")]
     [switch]$Prompt,    
     [Parameter(Mandatory=$false, HelpMessage="Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus')")]
@@ -196,11 +207,21 @@ if ($CreateVNet){
 foreach ($vnet in $allVnets) {
     $counter++
     $percentComplete = ($counter / $vnetCount) * 100
+
+    # If Regions switch is used, skip VNet if not in specified regions
+    if ($Regions) {
+        if ($vnet.Location -notin $Regions) {
+            Start-Sleep -Seconds 1
+            continue
+        }
+    }
+
     Write-Progress -Activity "Processing VNet $($vnet.Name)" -Status "Processing VNet $counter of $vnetCount" -PercentComplete $percentComplete -Id 1
 
     # If no tag on VNet skip it and wait 1 second so progress bar is visible
     if (-not $vnet.Tag) { Start-Sleep -Seconds 1; continue }
-    
+
+    # If tag is found on VNet, continue
     if ($vnet.Tag.ContainsKey($tagName)) {
         # Set subnet name format (current matches DIG, DSPM subnet name)
         $subnetName = "$($tagName)-$($vnet.Location)"
@@ -208,6 +229,10 @@ foreach ($vnet in $allVnets) {
         # If ImportFile switch is used, get CIDR from CSV file
         if ($ImportFile) {
             $regionData = $csvData | Where-Object Region -eq $vnet.Location
+
+            # Skip to next VNet if no CIDR found for region
+            if (-not  $regionData) { continue }
+            
             $newAddress = $regionData.Cidr
         }
 
