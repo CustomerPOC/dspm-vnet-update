@@ -3,16 +3,19 @@
     This script allows for the re-ip or re-creation of DIG | Prisma Cloud DSPM VNets used for data scanning.
 
 .DESCRIPTION
-    This script will look for all VNets 
+    This script will look for all VNets in a resource group matching: "dig-security-rg-" and then find all VNets matching the tag "dig-security"
+    Once identified the script will remove all subnets and CIDR's, replace with specified CIDR.
 
 .PARAMETER CreateVNet
     Create/re-create new VNets based on defined regions.
 
+.PARAMETER Cidr
+    Address prefix to use for new VNets: 10.1.0.0/24
 .PARAMETER Force
     If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
 
 .PARAMETER Regions
-    Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus').
+    Comma-separated list of Azure regions used for CreateVNet switch: "westus,eastus,centralus"
 
 .EXAMPLE
     Create VNet's in westus, eastus, and eastus2 regions.
@@ -42,7 +45,6 @@ param (
 )
 
 $tagName        = 'dig-security'
-$defaultRegions = @("westus", "eastus", "northcentralus", "southcentralus", "centralus", "eastus2", "canadaeast", "westcentralus", "westus2", "westus3")
 $resourceGroup  = Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -match "dig-security-rg-" }
 $allVnets       = Get-AzVirtualNetwork -ResourceGroupName $resourceGroup.ResourceGroupName
 $vnetCount      = $allVnets.Count
@@ -50,10 +52,6 @@ $newAddress     = $Cidr
 
 if ($Regions) {
     $dspmRegions = $Regions.Split(',').Trim()
-}
-
-if (-not $regions) {
-    $dspmRegions = $defaultRegions
 }
 
 $regionCount    = $dspmRegions.Count
