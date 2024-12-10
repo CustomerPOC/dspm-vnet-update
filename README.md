@@ -31,5 +31,5 @@ Run the script to update all your VNets. This example re-ip's all the DSPM VNets
 Run the script to create VNets in specified regions.
 
 ```shell
-./dspm-vnet-update/dspm-vnet-change.ps1 -CreateVNet -Regions "canadaeast, centralus, eastus, eastus2, northcentralus, southcentralus, westcentralus, westus, westus2, westus3"
+./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22 -CreateVNet -Regions "canadaeast, centralus, eastus, eastus2, northcentralus, southcentralus, westcentralus, westus, westus2, westus3"
 ```
