@@ -7,34 +7,49 @@ This repo contains an Azure Powershell script that can be used to re-ip DIG | DS
 >  Running this script will remove all existing VNet address space and subnets for all VNets in the dig-security-rg-* Resource Group that also have VNets tagged with 'dig-security'
 >  The address space provided will replace the existing VNet address space and a single subnet using the full address space will be created.
 
+
+## Installation
+
 Open Azure Cloud Shell and clone this repo.
 
 ```shell
 git clone https://github.com/CustomerPOC/dspm-vnet-update
 ```
 
-Set your subscription id to target the DIG hub account subscription.
+Set your subscription id to target the DIG hub account subscription where 00000000-0000-0000-0000-000000000000 is your subscription id.
 
 ```shell
 Set-AzContext -Subscription 00000000-0000-0000-0000-000000000000
 ```
 
-Run the script to update all your VNets. This example re-ip's all the DSPM VNets to 10.61.8.0/22
+Chnage the directory to the cloned repo.
 
 ```shell
-./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22
+cd dspm-vnet-update
 ```
 
-Run the script to update all your VNets prompting for the CIDR in each region.
+## Example Usage
+
+Example: Re-IP all DSPM VNets to 10.20.0.0/24
 
 ```shell
-./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22 -Prompt
+./dspm-vnet-change.ps1 -Cidr 10.20.0.0/24
 ```
 
-### (Optional) Create VNet
-
-Run the script to create VNets in specified regions.
+Example: Import a CSV and update DIG | DSPM VNets defined in the CSV.
 
 ```shell
-./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22 -CreateVNet -Regions "canadaeast, centralus, eastus, eastus2, northcentralus, southcentralus, westcentralus, westus, westus2, westus3"
+./dspm-vnet-change.ps1 -ImportFile ./example.csv
+```
+
+Example: Update all DIG | DSPM VNets prompting for the CIDR in each region.
+
+```shell
+./dspm-vnet-change.ps1 -Prompt
+```
+
+Example: Create VNets in specified regions.
+
+```shell
+./dspm-vnet-change.ps1 -Cidr 10.20.0.0/24 -CreateVNet -Regions "canadaeast, centralus, eastus, eastus2"
 ```

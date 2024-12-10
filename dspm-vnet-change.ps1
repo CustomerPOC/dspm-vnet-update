@@ -27,7 +27,9 @@
     
 
 .PARAMETER Regions
-    Comma-separated list of Azure regions used for CreateVNet switch: "westus,eastus,centralus"
+    Comma-separated list of Azure regions: "westus,eastus,centralus"
+    When selected only the specified regions will be modified.
+    
 
 .EXAMPLE
     Create VNet's in westus, eastus, and eastus2 regions.
