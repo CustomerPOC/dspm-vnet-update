@@ -25,7 +25,13 @@ Run the script to update all your VNets. This example re-ip's all the DSPM VNets
 ./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22
 ```
 
-## (Optional) Create VNet
+Run the script to update all your VNets prompting for the CIDR in each region.
+
+```shell
+./dspm-vnet-update/dspm-vnet-change.ps1 -Cidr 10.61.8.0/22 -Prompt
+```
+
+### (Optional) Create VNet
 
 Run the script to create VNets in specified regions.
 
