@@ -6,12 +6,18 @@
     This script will look for all VNets in a resource group matching: "dig-security-rg-" and then find all VNets matching the tag "dig-security"
     Once identified the script will remove all subnets and CIDR's, replace with specified CIDR.
 
-.PARAMETER CreateVNet
-    Create/re-create new VNets based on defined regions.
+.PARAMETER Backup
+    Switch to backup existing VNet as JSON file.
 
 .PARAMETER Cidr
     Address prefix to use for new VNets: 10.1.0.0/24
 
+.PARAMETER CreateVNet
+    Create/re-create new VNets based on defined regions.
+
+.PARAMETER Prompt
+    Switch to prompt user for new CIDR.
+    
 .PARAMETER Force
     If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
 
@@ -21,12 +27,22 @@
 .EXAMPLE
     Create VNet's in westus, eastus, and eastus2 regions.
 
-    .\dspm-vnet-change.ps1 -CreateVNet -Regions "westus,eastus, eastus2"
+    .\dspm-vnet-change.ps1 -CreateVNet -Regions "westus,eastus, eastus2" -Cidr 10.10.0.0/24
 
 .EXAMPLE
     Re-IP existing VNets with new CIDR.
 
-    .\dspm-vnet-change.ps1
+    .\dspm-vnet-change.ps1 -Cidr 10.10.0.0/24
+
+.EXAMPLE
+    Re-IP existing VNets with new CIDR and backup existing VNets.
+
+    .\dspm-vnet-change.ps1 -Cidr 10.10.0.0/24 -Backup
+
+.EXAMPLE
+    Re-IP existing VNets with new CIDR and prompt for each region CIDR.
+
+    .\dspm-vnet-change.ps1 -Cidr 10.10.0.0/24 -Prompt
 
 .NOTES
     Author: Erick Moore
@@ -35,12 +51,14 @@
 
 [CmdletBinding()]
 param (
+    [Parameter(Mandatory=$false, HelpMessage="If selected will output raw JSON of VNet's.")]
+    [switch]$Backup,
+    [Parameter(Mandatory=$true, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
+    [string]$Cidr,
     [Parameter(Mandatory=$false, HelpMessage="Create new VNets based on defined regions.")]
     [switch]$CreateVNet,
     [Parameter(Mandatory=$false, HelpMessage="If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.")]
     [switch]$Force,
-    [Parameter(Mandatory=$true, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
-    [string]$Cidr,
     [Parameter(Mandatory=$false, HelpMessage="Prompt for CIDR on each region.")]
     [switch]$Prompt,    
     [Parameter(Mandatory=$false, HelpMessage="Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus')")]
@@ -101,16 +119,13 @@ if ($CreateVNet){
             if (-not (Test-CIDR -cidr $newAddress)) {
                 Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
                 Write-Host "Skipping $region"
-                exit
+                continue
             }
         }
 
         $counter++
         $percentComplete = ($counter / $regionCount ) * 100
         Write-Progress -Activity "Creating VNet in $region" -Status "$counter of $regionCount" -PercentComplete $percentComplete
-
-        # Backup VNet as JSON file
-        #Backup-VNet -vnet $vnet
 
         $digName = "$tagName-$region"
 
@@ -158,7 +173,7 @@ foreach ($vnet in $allVnets) {
 
         try {
             # Backup VNet as JSON file
-            Backup-VNet -vnet $vnet
+            if ($Backup) { Backup-VNet -vnet $vnet }
 
             # Remove all existing address space
             foreach ($address in $($vnet.AddressSpace.AddressPrefixes)) {
@@ -186,6 +201,5 @@ foreach ($vnet in $allVnets) {
             Write-Error "Failed to modify VNet $($vnet.Name): $_"
         }
         finally {}
-
     }
 }
