@@ -1,0 +1,5 @@
+Region, Cidr
+centralus, 10.0.0.0/24
+eastus, 10.1.0.0/24
+eastus2, 10.2.0.0/24
+westus, 10.3.0.0/24
