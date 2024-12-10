@@ -11,6 +11,7 @@
 
 .PARAMETER Cidr
     Address prefix to use for new VNets: 10.1.0.0/24
+
 .PARAMETER Force
     If CreateVNet is used, this will overwrite existing VNets instead of prompting to replace.
 
@@ -40,6 +41,8 @@ param (
     [switch]$Force,
     [Parameter(Mandatory=$true, HelpMessage = "IP CIDR range to use for new VNet: 10.10.0.0/22")]
     [string]$Cidr,
+    [Parameter(Mandatory=$false, HelpMessage="Prompt for CIDR on each region.")]
+    [switch]$Prompt,    
     [Parameter(Mandatory=$false, HelpMessage="Comma-separated list of Azure regions used for CreateVNet switch (e.g., 'westus,eastus,centralus')")]
     [string]$Regions
 )
@@ -47,6 +50,7 @@ param (
 $tagName        = 'dig-security'
 $resourceGroup  = Get-AzResourceGroup | Where-Object { $_.ResourceGroupName -match "dig-security-rg-" }
 $allVnets       = Get-AzVirtualNetwork -ResourceGroupName $resourceGroup.ResourceGroupName
+$allNatGWs      = Get-AzNatGateway -ResourceGroupName $resourceGroup.ResourceGroupName
 $vnetCount      = $allVnets.Count
 $newAddress     = $Cidr
 
@@ -92,6 +96,15 @@ if ($CreateVNet){
 
     foreach ($region in $dspmRegions) {
 
+        if ($Prompt) {
+            $newAddress = Read-Host "Enter CIDR for $region"
+            if (-not (Test-CIDR -cidr $newAddress)) {
+                Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
+                Write-Host "Skipping $region"
+                exit
+            }
+        }
+
         $counter++
         $percentComplete = ($counter / $regionCount ) * 100
         Write-Progress -Activity "Creating VNet in $region" -Status "$counter of $regionCount" -PercentComplete $percentComplete
@@ -124,7 +137,7 @@ if ($CreateVNet){
 foreach ($vnet in $allVnets) {
     $counter++
     $percentComplete = ($counter / $vnetCount) * 100
-    Write-Progress -Activity "Processing VNets" -Status "Processing VNet $counter of $vnetCount" -PercentComplete $percentComplete
+    Write-Progress -Activity "Processing VNet $($vnet.Name)" -Status "Processing VNet $counter of $vnetCount" -PercentComplete $percentComplete -Id 1
 
     # If no tag on VNet skip it and wait 1 second so progress bar is visible
     if (-not $vnet.Tag) { Start-Sleep -Seconds 1; continue }
@@ -132,6 +145,16 @@ foreach ($vnet in $allVnets) {
     if ($vnet.Tag.ContainsKey($tagName)) {
         # Set subnet name format (current matches DIG, DSPM subnet name)
         $subnetName = "$($tagName)-$($vnet.Location)"
+
+        # If Prompt switch is used, prompt user for new CIDR
+        if ($Prompt) {
+            $newAddress = Read-Host "Enter CIDR for $($vnet.Location)"
+            if (-not (Test-CIDR -cidr $newAddress)) {
+                Write-Host "Invalid CIDR format. Please enter a valid CIDR notation (e.g., 10.1.0.0/24)." -BackgroundColor DarkRed -ForegroundColor White
+                Write-Host "Skipping $($vnet.Location)"
+                continue
+            }
+        }
 
         try {
             # Backup VNet as JSON file
@@ -150,8 +173,11 @@ foreach ($vnet in $allVnets) {
                 $vnet.Subnets.Remove($subnet) > $null
             }
 
+            # Regional NAT GW
+            $currentNatGW = $allNatGWs | Where-Object Location -eq $vnet.Location
+
             # Add new subnet
-            Add-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix $newAddress -VirtualNetwork $vnet > $null
+            Add-AzVirtualNetworkSubnetConfig -Name $subnetName -AddressPrefix $newAddress -VirtualNetwork $vnet -InputObject $currentNatGW > $null
 
             # Update VNet config
             Set-AzVirtualNetwork -VirtualNetwork $vnet > $null
